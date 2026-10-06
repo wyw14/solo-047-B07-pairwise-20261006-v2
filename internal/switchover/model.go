@@ -14,7 +14,12 @@ const (
 	StateProtected       State = "protected"
 	StateRestoring       State = "restoring-primary"
 	StateCompleted       State = "completed"
-	StateFailed          State = "failed"
+	// StateRetryable marks an operation that stopped before any topology
+	// change because it was interrupted; reissuing it is safe.
+	StateRetryable State = "retryable"
+	// StateFailed marks a non-recoverable device/topology fault. Topology was
+	// not changed; operator intervention is required.
+	StateFailed State = "failed"
 )
 
 type Event struct {
