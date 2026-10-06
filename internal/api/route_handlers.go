@@ -20,6 +20,9 @@ func (s *Server) startSwitchover(writer http.ResponseWriter, request *http.Reque
 	}
 	result, err := s.services.Switchovers.Failover(request.Context(), target)
 	if err != nil {
+		// Persist the terminal snapshot even on failure: the operation's
+		// event trail is the audit record of why topology did not change.
+		_ = s.services.Persist("switchover", result.ID, result)
 		writeError(writer, http.StatusConflict, err)
 		return
 	}

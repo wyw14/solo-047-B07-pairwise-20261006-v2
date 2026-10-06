@@ -14,7 +14,15 @@ const (
 	StateProtected       State = "protected"
 	StateRestoring       State = "restoring-primary"
 	StateCompleted       State = "completed"
-	StateFailed          State = "failed"
+	// StateFailed is terminal after topology changes may have begun; the
+	// operation must not be retried blindly.
+	StateFailed State = "failed"
+	// StateAborted is terminal before any topology change: the caller
+	// canceled, so the operation stopped where it was.
+	StateAborted State = "aborted"
+	// StateRetryable is terminal before any topology change: a hard failure
+	// stopped the operation and it is safe to issue it again.
+	StateRetryable State = "retryable"
 )
 
 type Event struct {
@@ -43,9 +51,7 @@ func NewOperation(id, routeID string, at time.Time) *Operation {
 func (o *Operation) Snapshot() Snapshot {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
-	result := o.snapshot
-	result.Events = append([]Event(nil), result.Events...)
-	return result
+	return o.isolated()
 }
 
 func (o *Operation) record(state State, stage, message string, at time.Time) Snapshot {
@@ -54,5 +60,14 @@ func (o *Operation) record(state State, stage, message string, at time.Time) Sna
 	o.snapshot.State = state
 	o.snapshot.Events = append(o.snapshot.Events, Event{Stage: stage, Message: message, At: at.UTC()})
 	o.snapshot.UpdatedAt = at.UTC()
-	return o.snapshot
+	return o.isolated()
+}
+
+// isolated returns a copy of the snapshot whose Events slice shares no
+// backing array with the operation, so returned snapshots stay intact as
+// later events are recorded.
+func (o *Operation) isolated() Snapshot {
+	result := o.snapshot
+	result.Events = append([]Event(nil), result.Events...)
+	return result
 }

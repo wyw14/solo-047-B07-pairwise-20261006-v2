@@ -22,7 +22,11 @@ func (d *Drainer) Drain(ctx context.Context, route *Route, at time.Time) (Snapsh
 		defer timer.Stop()
 		select {
 		case <-ctx.Done():
-			return route.Snapshot(), fmt.Errorf("route drain interrupted: %w", ctx.Err())
+			// An interrupted drain commits nothing: traffic still rides the
+			// pre-drain path, so the route rolls back instead of being left
+			// half-drained.
+			route.update(before.State, before.ActivePath, before.TrafficBPS, before.UpdatedAt)
+			return before, fmt.Errorf("route drain interrupted: %w", ctx.Err())
 		case <-timer.C:
 		}
 	}
